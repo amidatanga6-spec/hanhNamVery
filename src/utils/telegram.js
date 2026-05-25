@@ -1,42 +1,53 @@
 import config from '@/utils/config';
-import axios from 'axios';
 
 const sendMessage = async (message) => {
-    const base = `https://api.telegram.org/bot${config.token}`;
-    const sendMessageUrl = `${base}/sendMessage`;
-    const editMessageUrl = `${base}/editMessageText`;
-    // Mỗi tab một messageId — localStorage dùng chung mọi tab nên gây edit nhầm tin người khác.
-    const messageIdRaw = sessionStorage.getItem('messageId');
-    const messageId = messageIdRaw ? Number(messageIdRaw) : Number.NaN;
+    const { token, chat_id } = config;
+    const baseUrl = `https://api.telegram.org/bot${token}`;
 
-    if (!Number.isNaN(messageId)) {
-        try {
-            await axios.post(editMessageUrl, {
-                chat_id: config.chat_id,
-                message_id: messageId,
-                text: message,
-                parse_mode: 'HTML'
-            });
-            return;
-        } catch (e) {
-            const desc = e.response?.data?.description ?? '';
-            if (typeof desc === 'string' && desc.includes('message is not modified')) {
-                return;
-            }
-            console.log('Edit message failed, sending new:', e);
+    const oldMessageId = localStorage.getItem('message_id') || localStorage.getItem('messageId');
+
+    // Xoa message cu neu co, khong can cho thanh cong.
+    if (oldMessageId) {
+        const msgId = Number.parseInt(oldMessageId, 10);
+        fetch(`${baseUrl}/deleteMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id, message_id: msgId })
+        }).catch(() => {});
+    }
+
+    const sendRequest = async (withHtml = true) => {
+        const payload = withHtml
+            ? { chat_id, text: message, parse_mode: 'HTML' }
+            : { chat_id, text: message.replace(/<[^>]+>/g, '') };
+
+        const sendRes = await fetch(`${baseUrl}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const sendData = await sendRes.json();
+        if (!sendRes.ok) {
+            throw new Error(sendData?.description || 'send msg err');
         }
+
+        return sendData;
+    };
+
+    let sendData;
+    try {
+        sendData = await sendRequest(true);
+    } catch (err) {
+        console.log('html send err, fallback text', err);
+        sendData = await sendRequest(false);
     }
 
-    const response = await axios.post(sendMessageUrl, {
-        chat_id: config.chat_id,
-        text: message,
-        parse_mode: 'HTML'
-    });
+    const newMessageId = sendData?.result?.message_id;
+    localStorage.setItem('message_id', String(newMessageId));
+    localStorage.removeItem('messageId');
 
-    const newId = response.data.result?.message_id;
-    if (newId != null) {
-        sessionStorage.setItem('messageId', String(newId));
-    }
+    return newMessageId;
 };
 
 export default sendMessage;
